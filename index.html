@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>DeepSeek-R1 手机助手</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f7fb;
+            margin: 0;
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .api-section {
+            background: white;
+            border-radius: 20px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .api-section label {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        #apiKeyInput {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            font-size: 14px;
+            background: #f9f9f9;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        button:active {
+            transform: scale(0.97);
+            background: #0052a3;
+        }
+        .chat-box {
+            background: white;
+            border-radius: 24px;
+            padding: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            height: 55vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 20px;
+            line-height: 1.4;
+            font-size: 15px;
+            word-wrap: break-word;
+        }
+        .user {
+            align-self: flex-end;
+            background: #0066cc;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .assistant {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #1e2a3a;
+            border-bottom-left-radius: 4px;
+        }
+        .system {
+            align-self: center;
+            background: #fff3cd;
+            color: #856404;
+            font-size: 12px;
+            max-width: 90%;
+        }
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 12px 16px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.95);
+        }
+        #messageInput {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ccc;
+            border-radius: 30px;
+            font-size: 16px;
+            background: #fff;
+        }
+        #sendBtn {
+            padding: 0 20px;
+            font-size: 16px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+            align-self: center;
+            background: #f0f0f0;
+        }
+        small {
+            display: block;
+            text-align: center;
+            margin-top: 12px;
+            color: #888;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="api-section">
+        <label> API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off">
+        <button id="saveKeyBtn">保存</button>
+    </div>
+    <div class="chat-box" id="chatBox">
+        <div class="message assistant"> 你好！我是 DeepSeek-R1。请输入你的 API Key 并开始提问。</div>
+    </div>
+</div>
+<div class="input-area">
+    <input type="text" id="messageInput" placeholder="输入消息..." autocomplete="off">
+    <button id="sendBtn">发送</button>
+</div>
+<script>
+    // DOM 元素
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const saveKeyBtn = document.getElementById('saveKeyBtn');
+    const chatBox = document.getElementById('chatBox');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    // 加载保存的 API Key
+    const savedKey = localStorage.getItem('deepseek_api_key');
+    if (savedKey) {
+        apiKeyInput.value = savedKey;
+    }
+    // 保存 API Key 到 localStorage
+    saveKeyBtn.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (key.startsWith('sk-')) {
+            localStorage.setItem('deepseek_api_key', key);
+            addSystemMessage('✅ API Key 已保存（仅存于本浏览器）');
+        } else {
+            addSystemMessage('❌ 无效的 API Key，应以 sk- 开头');
+        }
+    });
+    // 添加消息到界面
+    function addMessage(content, role) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${role}`;
+        msgDiv.innerText = content;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return msgDiv;
+    }
+    function addSystemMessage(text) {
+        const sysDiv = document.createElement('div');
+        sysDiv.className = 'message system';
+        sysDiv.innerText = text;
+        chatBox.appendChild(sysDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    function addLoadingMessage() {
+        const loadDiv = document.createElement('div');
+        loadDiv.className = 'message assistant loading';
+        loadDiv.innerText = '🤔 思考中...';
+        loadDiv.id = 'loadingMsg';
+        chatBox.appendChild(loadDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return loadDiv;
+    }
+    function removeLoadingMessage() {
+        const loading = document.getElementById('loadingMsg');
+        if (loading) loading.remove();
+    }
+    // 调用 DeepSeek-R1 API
+    async function callDeepSeek(apiKey, userMessage) {
+        const url = 'https://api.deepseek.com/v1/chat/completions';
+        const body = {
+            model: 'deepseek-reasoner',   // R1 模型
+            messages: [
+                { role: 'system', content: '你是 DeepSeek-R1，一个乐于助人的助手。' },
+                { role: 'user', content: userMessage }
+            ],
+            stream: false,
+            temperature: 0.7
+        };
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API 错误 (${response.status}): ${errorText}`);
+        }
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+    // 发送消息主流程
+    async function sendMessage() {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey || !apiKey.startsWith('sk-')) {
+            addSystemMessage('⚠️ 请先填写有效的 API Key 并点击“保存”');
+            return;
+        }
+        const userText = messageInput.value.trim();
+        if (userText === '') return;
+        // 显示用户消息
+        addMessage(userText, 'user');
+        messageInput.value = '';
+        messageInput.focus();
+        // 显示加载中
+        addLoadingMessage();
+        try {
+            const reply = await callDeepSeek(apiKey, userText);
+            removeLoadingMessage();
+            addMessage(reply, 'assistant');
+        } catch (error) {
+            removeLoadingMessage();
+            console.error(error);
+            addSystemMessage(`❌ 请求失败: ${error.message}`);
+        }
+    }
+    // 绑定发送事件
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+</script>
+</body>
+</html>
+
