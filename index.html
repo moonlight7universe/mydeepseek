@@ -1,0 +1,859 @@
+06.10 21:23
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DeepSeek Mobile - 智能助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f7f9fc;
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+        /* 主容器布局 */
+        .app-container {
+            display: flex;
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+        /* 侧边栏 - 默认隐藏，通过菜单按钮打开 */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 85%;
+            max-width: 320px;
+            height: 100%;
+            background: white;
+            z-index: 1000;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e9ecef;
+        }
+        .sidebar.open {
+            transform: translateX(0);
+        }
+        .sidebar-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid #eef2f6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+        }
+        .sidebar-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2a3e;
+        }
+        .new-chat-btn {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .new-chat-btn:active {
+            background: #0052a3;
+        }
+        .conversation-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 0;
+        }
+        .conversation-item {
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-radius: 8px;
+            margin: 4px 8px;
+            transition: background 0.2s;
+        }
+        .conversation-item.active {
+            background: #e8f0fe;
+        }
+        .conversation-item:active {
+            background: #e2e6ea;
+        }
+        .conv-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1e2a3e;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .delete-conv {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0 6px;
+        }
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 999;
+            display: none;
+        }
+        .sidebar-overlay.show {
+            display: block;
+        }
+        /* 主聊天区域 */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background: #ffffff;
+            position: relative;
+        }
+        /* 顶部栏 */
+        .chat-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eef2f6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .menu-btn {
+            font-size: 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        .menu-btn:active {
+            background: #f1f3f5;
+        }
+        .balance-area {
+            font-size: 14px;
+            background: #f1f5f9;
+            padding: 6px 12px;
+            border-radius: 24px;
+            color: #1f2a3e;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .refresh-balance {
+            background: none;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        /* 消息列表区域 */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 12px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+        /* 消息气泡 */
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 90%;
+            align-self: flex-start;
+        }
+        .message.user {
+            align-self: flex-end;
+        }
+        .message.assistant {
+            align-self: flex-start;
+        }
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 20px;
+            word-wrap: break-word;
+            font-size: 15px;
+            line-height: 1.45;
+            position: relative;
+        }
+        .user .bubble {
+            background: #0066cc;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .assistant .bubble {
+            background: #f1f3f5;
+            color: #1e2a3e;
+            border-bottom-left-radius: 4px;
+        }
+        .message-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 6px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+        .edit-msg-btn, .delete-msg-btn {
+            background: none;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            color: #6c7a91;
+        }
+        /* 底部输入区域 */
+        .input-area-wrapper {
+            background: white;
+            border-top: 1px solid #eef2f6;
+            padding: 10px 12px 20px;
+            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        }
+        .model-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .model-selector {
+            display: flex;
+            gap: 12px;
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 32px;
+        }
+        .model-option {
+            padding: 6px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: transparent;
+            border: none;
+        }
+        .model-option.active {
+            background: #0066cc;
+            color: white;
+        }
+        .deep-think-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 4px 12px;
+            border-radius: 32px;
+            font-size: 13px;
+        }
+        .deep-think-toggle input {
+            width: 36px;
+            height: 20px;
+            accent-color: #0066cc;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .message-input {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 12px 16px;
+            font-size: 15px;
+            resize: none;
+            font-family: inherit;
+            background: #ffffff;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .send-btn {
+            background: #0066cc;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .send-btn:active {
+            background: #0052a3;
+        }
+        .send-btn.disabled {
+            background: #b0c4de;
+            pointer-events: none;
+        }
+        /* 加载指示器 */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 10px 16px;
+            background: #f1f3f5;
+            border-radius: 20px;
+            width: fit-content;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #8a9bb0;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        @keyframes bounce {
+            0%,60%,100%{ transform: translateY(0); }
+            30%{ transform: translateY(-6px); }
+        }
+        /* 编辑对话框简单模拟 */
+        .edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .edit-card {
+            background: white;
+            width: 85%;
+            border-radius: 24px;
+            padding: 20px;
+        }
+        .edit-card textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            margin: 12px 0;
+            font-size: 15px;
+        }
+        .edit-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        /* 其他 */
+        .error-toast {
+            position: fixed;
+            bottom: 100px;
+            left: 16px;
+            right: 16px;
+            background: #e53e3e;
+            color: white;
+            padding: 10px;
+            border-radius: 12px;
+            text-align: center;
+            z-index: 1100;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- 侧边栏 -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>对话历史</h3>
+            <button class="new-chat-btn" id="newChatBtn">+ 新对话</button>
+        </div>
+        <div class="conversation-list" id="conversationList"></div>
+    </div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <!-- 主聊天区域 -->
+    <div class="main-chat">
+        <div class="chat-header">
+            <button class="menu-btn" id="menuBtn">☰</button>
+            <div class="balance-area">
+                <span id="balanceDisplay">余额: --</span>
+                <button class="refresh-balance" id="refreshBalance">⟳</button>
+            </div>
+        </div>
+        <div class="messages-container" id="messagesContainer">
+            <div style="text-align: center; color: #8a9bb0; padding: 40px;"> 欢迎! 设置API Key后开始对话</div>
+        </div>
+        <div class="input-area-wrapper">
+            <div class="model-panel">
+                <div class="model-selector">
+                    <button data-model="deepseek-reasoner" class="model-option" id="modelR1">R1</button>
+                    <button data-model="deepseek-chat" class="model-option" id="modelV3">V3</button>
+                </div>
+                <label class="deep-think-toggle">
+                    <span>🧠 深度思考</span>
+                    <input type="checkbox" id="deepThinkToggle">
+                </label>
+            </div>
+            <div class="input-row">
+                <textarea rows="1" class="message-input" id="messageInput" placeholder="输入消息..."></textarea>
+                <button class="send-btn" id="sendBtn">➤</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // ---------- 全局变量 ----------
+    let conversations = [];           // [{ id, title, messages }]
+    let currentConversationId = null;
+    let apiKey = localStorage.getItem('deepseek_api_key') || '';
+    let currentModel = localStorage.getItem('selected_model') || 'deepseek-reasoner'; // deepseek-reasoner / deepseek-chat
+    let deepThinkEnabled = localStorage.getItem('deep_think') === 'true';
+    let isLoading = false;            // 防止重复请求
+    // DOM 元素
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const menuBtn = document.getElementById('menuBtn');
+    const conversationListDiv = document.getElementById('conversationList');
+    const messagesContainer = document.getElementById('messagesContainer');
+    const sendBtn = document.getElementById('sendBtn');
+    const messageInput = document.getElementById('messageInput');
+    const balanceDisplay = document.getElementById('balanceDisplay');
+    const refreshBalanceBtn = document.getElementById('refreshBalance');
+    const modelR1 = document.getElementById('modelR1');
+    const modelV3 = document.getElementById('modelV3');
+    const deepThinkToggle = document.getElementById('deepThinkToggle');
+    const newChatBtn = document.getElementById('newChatBtn');
+    // 初始化：加载本地数据，模型开关等
+    function init() {
+        // 加载存储的对话
+        const stored = localStorage.getItem('deepseek_conversations');
+        if (stored) {
+            try {
+                conversations = JSON.parse(stored);
+            } catch(e) { conversations = []; }
+        }
+        if (!conversations || conversations.length === 0) {
+            createNewConversation();
+        } else {
+            // 恢复当前对话ID
+            const savedCurrent = localStorage.getItem('current_conversation_id');
+            if (savedCurrent && conversations.find(c => c.id === savedCurrent)) {
+                currentConversationId = savedCurrent;
+            } else {
+                currentConversationId = conversations[0].id;
+            }
+        }
+        // 模型显示
+        updateModelUI();
+        deepThinkToggle.checked = deepThinkEnabled;
+        // 如果没有apikey，提示设置
+        if (!apiKey) {
+            setTimeout(() => {
+                const key = prompt("请输入您的 DeepSeek API Key (获取地址: platform.deepseek.com)");
+                if (key && key.trim()) {
+                    apiKey = key.trim();
+                    localStorage.setItem('deepseek_api_key', apiKey);
+                    fetchBalance();
+                } else {
+                    showToast("未设置API Key，部分功能不可用");
+                }
+            }, 200);
+        } else {
+            fetchBalance();
+        }
+        renderConversationList();
+        renderCurrentMessages();
+        // 自动调整textarea高度
+        autoResizeTextarea();
+    }
+    function createNewConversation() {
+        const newId = Date.now().toString();
+        const newConv = {
+            id: newId,
+            title: "新对话",
+            messages: []
+        };
+        conversations.unshift(newConv);
+        currentConversationId = newId;
+        saveConversations();
+        renderConversationList();
+        renderCurrentMessages();
+    }
+    function saveConversations() {
+        localStorage.setItem('deepseek_conversations', JSON.stringify(conversations));
+        localStorage.setItem('current_conversation_id', currentConversationId);
+        localStorage.setItem('selected_model', currentModel);
+        localStorage.setItem('deep_think', deepThinkEnabled);
+    }
+    function updateModelUI() {
+        if (currentModel === 'deepseek-reasoner') {
+            modelR1.classList.add('active');
+            modelV3.classList.remove('active');
+        } else {
+            modelV3.classList.add('active');
+            modelR1.classList.remove('active');
+        }
+    }
+    function switchModel(model) {
+        currentModel = model;
+        updateModelUI();
+        saveConversations();
+        // 模型切换后不清除聊天，但提示已切换
+        showToast(`已切换至${model === 'deepseek-reasoner' ? 'DeepSeek-R1' : 'DeepSeek-V3'}`);
+    }
+    // 渲染左侧对话列表
+    function renderConversationList() {
+        conversationListDiv.innerHTML = '';
+        conversations.forEach(conv => {
+            const div = document.createElement('div');
+            div.className = `conversation-item ${currentConversationId === conv.id ? 'active' : ''}`;
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'conv-title';
+            titleSpan.innerText = conv.title || (conv.messages[0]?.content?.slice(0, 20) || "新对话");
+            const delBtn = document.createElement('button');
+            delBtn.innerText = '';
+            delBtn.className = 'delete-conv';
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteConversation(conv.id);
+            });
+            div.appendChild(titleSpan);
+            div.appendChild(delBtn);
+            div.addEventListener('click', () => {
+                currentConversationId = conv.id;
+                saveConversations();
+                renderConversationList();
+                renderCurrentMessages();
+                closeSidebar();
+            });
+            conversationListDiv.appendChild(div);
+        });
+    }
+    function deleteConversation(id) {
+        if (conversations.length === 1) {
+            showToast("至少保留一个对话");
+            return;
+        }
+        const index = conversations.findIndex(c => c.id === id);
+        if (index !== -1) {
+            conversations.splice(index, 1);
+            if (currentConversationId === id) {
+                currentConversationId = conversations[0].id;
+            }
+            saveConversations();
+            renderConversationList();
+            renderCurrentMessages();
+        }
+    }
+    // 获取当前对话对象
+    function getCurrentConv() {
+        return conversations.find(c => c.id === currentConversationId);
+    }
+    // 渲染当前对话消息
+    function renderCurrentMessages() {
+        const conv = getCurrentConv();
+        if (!conv) return;
+        messagesContainer.innerHTML = '';
+        if (conv.messages.length === 0) {
+            const welcome = document.createElement('div');
+            welcome.style.textAlign = 'center';
+            welcome.style.color = '#8a9bb0';
+            welcome.style.padding = '40px';
+            welcome.innerText = '✨ 开始新的对话吧 ✨';
+            messagesContainer.appendChild(welcome);
+        } else {
+            conv.messages.forEach((msg, idx) => {
+                const messageDiv = createMessageElement(msg, idx);
+                messagesContainer.appendChild(messageDiv);
+            });
+        }
+        scrollToBottom();
+    }
+    function createMessageElement(msg, idx) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `message ${msg.role}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.innerText = msg.content;
+        const actions = document.createElement('div');
+        actions.className = 'message-actions';
+        const editBtn = document.createElement('button');
+        editBtn.innerText = '✏️ 编辑';
+        editBtn.className = 'edit-msg-btn';
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEditMessageModal(idx, msg.content);
+        });
+        actions.appendChild(editBtn);
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(actions);
+        return wrapper;
+    }
+    // 编辑消息（支持编辑任意消息，修改后重新生成后面的回复）
+    async function openEditMessageModal(msgIndex, oldContent) {
+        const modal = document.createElement('div');
+        modal.className = 'edit-modal';
+        modal.innerHTML = `
+            <div class="edit-card">
+                <h4>编辑消息</h4>
+                <textarea id="editMsgText">${escapeHtml(oldContent)}</textarea>
+                <div class="edit-actions">
+                    <button id="cancelEdit">取消</button>
+                    <button id="confirmEdit" style="background:#0066cc;color:white;border:none;padding:6px 16px;border-radius:20px;">保存并重新生成</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const textarea = modal.querySelector('#editMsgText');
+        const confirm = modal.querySelector('#confirmEdit');
+        const cancel = modal.querySelector('#cancelEdit');
+        const closeModal = () => modal.remove();
+        cancel.addEventListener('click', closeModal);
+        confirm.addEventListener('click', async () => {
+            const newContent = textarea.value.trim();
+            if (!newContent) {
+                showToast("内容不能为空");
+                return;
+            }
+            closeModal();
+            await editAndRegenerate(msgIndex, newContent);
+        });
+    }
+    async function editAndRegenerate(msgIndex, newContent) {
+        if (isLoading) {
+            showToast("请等待当前回复完成");
+            return;
+        }
+        const conv = getCurrentConv();
+        if (!conv) return;
+        // 更新该条消息内容
+        conv.messages[msgIndex].content = newContent;
+        // 删除该消息之后的所有消息
+        conv.messages = conv.messages.slice(0, msgIndex + 1);
+        // 更新对话标题
+        if (msgIndex === 0 && conv.messages[0]?.role === 'user') {
+            conv.title = newContent.slice(0, 20);
+        }
+        saveConversations();
+        renderCurrentMessages();
+        // 如果编辑的最后一条是用户消息，则请求AI；如果最后一条是助手消息，也需要继续请求？标准逻辑：编辑后若最后一条是用户，则需AI回复；若助手最后，不应该有后续，但保留场景：用户编辑了助手，相当于改变助手内容且之后无消息，不需要回复。
+        const lastMsg = conv.messages[conv.messages.length-1];
+        if (lastMsg.role === 'user') {
+            await sendMessageToAI(true); // 直接调用AI回复
+        } else {
+            showToast("消息已更新");
+            renderCurrentMessages();
+        }
+    }
+    // 发送新消息或重试 (forceFromEdit模式可忽略)
+    async function sendMessageToAI(skipAppend = false) {
+        if (isLoading) return;
+        const conv = getCurrentConv();
+        if (!conv) return;
+        let userMessage = messageInput.value.trim();
+        if (!skipAppend && userMessage === "") {
+            showToast("请输入消息");
+            return;
+        }
+        if (!apiKey) {
+            showToast("请先设置API Key (点击右上角余额旁刷新? 需在控制台或刷新时重新输入)");
+            const newKey = prompt("请输入DeepSeek API Key");
+            if (newKey) {
+                apiKey = newKey.trim();
+                localStorage.setItem('deepseek_api_key', apiKey);
+                fetchBalance();
+            } else return;
+        }
+        isLoading = true;
+        sendBtn.classList.add('disabled');
+        // 如果不是编辑触发的追加消息
+        if (!skipAppend) {
+            conv.messages.push({ role: 'user', content: userMessage });
+            // 更新标题
+            if (conv.messages.length === 1) {
+                conv.title = userMessage.slice(0, 20);
+            }
+            saveConversations();
+            renderCurrentMessages();
+            messageInput.value = '';
+            autoResizeTextarea();
+        }
+        // 添加 loading 占位
+        const loadingId = Date.now();
+        const loadingMsg = { role: 'assistant', content: '⏳ 思考中...', isLoading: true };
+        conv.messages.push(loadingMsg);
+        renderCurrentMessages();
+        scrollToBottom();
+        try {
+            // 准备历史消息（过滤掉临时loading）
+            const history = conv.messages.filter(m => !m.isLoading).map(m => ({ role: m.role, content: m.content }));
+            // 调用deepseek api
+            const response = await callDeepSeekAPI(history);
+            // 移除loading
+            conv.messages.pop();
+            conv.messages.push({ role: 'assistant', content: response });
+            saveConversations();
+            renderCurrentMessages();
+        } catch (err) {
+            conv.messages.pop(); // 移除loading
+            conv.messages.push({ role: 'assistant', content: `❌ 错误: ${err.message}` });
+            saveConversations();
+            renderCurrentMessages();
+            showToast(`API错误: ${err.message}`);
+        } finally {
+            isLoading = false;
+            sendBtn.classList.remove('disabled');
+            scrollToBottom();
+        }
+    }
+    async function callDeepSeekAPI(messagesArray) {
+        const model = currentModel;
+        const url = 'https://api.deepseek.com/v1/chat/completions';
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        };
+        const payload = {
+            model: model,
+            messages: messagesArray,
+            temperature: 0.7,
+            stream: false
+        };
+        // 附加深度思考逻辑：仅当深度思考开启且模型为V3时增加额外system提示（模拟深度思考）
+        if (deepThinkEnabled && currentModel === 'deepseek-chat') {
+            payload.messages.unshift({ role: 'system', content: "你是一位深度思考者，请提供详细、有逻辑、逐步推理的回答。" });
+        }
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+            const errData = await resp.json().catch(()=>({}));
+            throw new Error(errData.error?.message || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        return data.choices[0].message.content;
+    }
+    // 获取余额
+    async function fetchBalance() {
+        if (!apiKey) {
+            balanceDisplay.innerText = "余额: 未设置Key";
+            return;
+        }
+        try {
+            const resp = await fetch('https://api.deepseek.com/user/balance', {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                const balance = data.balance_infos?.[0]?.total_remaining ?? data.balance_remaining ?? "N/A";
+                balanceDisplay.innerText = `余额: ${balance}`;
+            } else {
+                balanceDisplay.innerText = "余额: 获取失败";
+            }
+        } catch(e) {
+            balanceDisplay.innerText = "余额: 网络错误";
+        }
+    }
+    // 发送按钮事件
+    function onSend() {
+        if (isLoading) return;
+        sendMessageToAI(false);
+    }
+    // 辅助函数
+    function scrollToBottom() {
+        setTimeout(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 50);
+    }
+    function autoResizeTextarea() {
+        const ta = messageInput;
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    }
+    function showToast(msg) {
+        let toast = document.querySelector('.error-toast');
+        if (toast) toast.remove();
+        toast = document.createElement('div');
+        toast.className = 'error-toast';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    }
+    function openSidebar() {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+    }
+    // 事件绑定
+    menuBtn.addEventListener('click', openSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    sendBtn.addEventListener('click', onSend);
+    messageInput.addEventListener('input', autoResizeTextarea);
+    refreshBalanceBtn.addEventListener('click', fetchBalance);
+    modelR1.addEventListener('click', () => switchModel('deepseek-reasoner'));
+    modelV3.addEventListener('click', () => switchModel('deepseek-chat'));
+    deepThinkToggle.addEventListener('change', (e) => {
+        deepThinkEnabled = e.target.checked;
+        saveConversations();
+        showToast(`深度思考${deepThinkEnabled ? '开启' : '关闭'}`);
+    });
+    newChatBtn.addEventListener('click', () => {
+        createNewConversation();
+        closeSidebar();
+    });
+    // 处理键盘发送
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+        }
+    });
+    init();
+</script>
+</body>
+</html>
+
